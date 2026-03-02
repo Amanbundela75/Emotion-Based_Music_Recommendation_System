@@ -108,7 +108,7 @@ def health_check():
 @app.post("/analyze", response_model=EmotionResponse, tags=["emotion"])
 def analyze(request: AnalyzeRequest):
     """
-    Analyse the facial expression in the provided base64 image.
+    Analyze the facial expression in the provided base64 image.
 
     Returns the dominant emotion and per-emotion confidence scores.
     """

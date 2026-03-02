@@ -35,7 +35,7 @@ def _base64_to_numpy(image_b64: str) -> np.ndarray:
 
 def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
     """
-    Analyse the dominant facial emotion from a base64 image.
+    Analyze the dominant facial emotion from a base64 image.
 
     Parameters
     ----------
