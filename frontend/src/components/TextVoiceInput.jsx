@@ -10,6 +10,7 @@ import { useState, useRef, useCallback } from "react";
 export default function TextVoiceInput({ onSubmit, isProcessing }) {
   const [text, setText] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState(null);
   const recognitionRef = useRef(null);
 
   const supportsVoice =
@@ -19,6 +20,7 @@ export default function TextVoiceInput({ onSubmit, isProcessing }) {
   const startListening = useCallback(() => {
     if (!supportsVoice) return;
 
+    setVoiceError(null);
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
@@ -32,8 +34,14 @@ export default function TextVoiceInput({ onSubmit, isProcessing }) {
       setIsListening(false);
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       setIsListening(false);
+      const messages = {
+        "not-allowed": "Microphone access denied. Please allow microphone permissions.",
+        "no-speech": "No speech detected. Please try again.",
+        "network": "Network error. Please check your connection.",
+      };
+      setVoiceError(messages[event.error] || `Voice input error: ${event.error}`);
     };
 
     recognition.onend = () => {
@@ -143,6 +151,10 @@ export default function TextVoiceInput({ onSubmit, isProcessing }) {
           )}
         </div>
       </form>
+
+      {voiceError && (
+        <p className="text-xs text-red-400">⚠️ {voiceError}</p>
+      )}
 
       {!supportsVoice && (
         <p className="text-xs text-gray-500">
