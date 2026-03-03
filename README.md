@@ -7,10 +7,13 @@ A full-stack web application that detects your facial expression via webcam and 
 ## ✨ Features
 
 - 🎭 **Real-time emotion detection** using [DeepFace](https://github.com/serengil/deepface) and OpenCV
+- 📝 **Text-based mood detection** — describe your day and get music that matches your mood
+- 🎤 **Voice input support** — use the Web Speech API to narrate your day hands-free
 - 🎵 **Music recommendations** via the [Spotify Web API](https://developer.spotify.com/) (Spotipy)
 - 📷 **Live webcam capture** with manual or automatic (every 5 s) detection
 - 📊 **Confidence score bars** for all detected emotions
 - 🌑 **Dark-themed React UI** built with Vite + Tailwind CSS
+- 🌐 **GitHub Pages ready** — works as a static site with client-side emotion analysis
 
 Supported emotions: `happy`, `sad`, `angry`, `neutral`, `surprise`, `fear`, `disgust`
 
@@ -20,9 +23,12 @@ Supported emotions: `happy`, `sad`, `angry`, `neutral`, `surprise`, `fear`, `dis
 
 ```
 .
+├── .github/workflows/
+│   └── deploy.yml            # GitHub Pages deployment
 ├── backend/                  # Python FastAPI backend
 │   ├── main.py               # API routes
 │   ├── emotion_detector.py   # DeepFace emotion analysis
+│   ├── text_emotion_analyzer.py  # Text-based emotion detection
 │   ├── spotify_service.py    # Spotify track recommendations
 │   ├── requirements.txt
 │   ├── Dockerfile
@@ -32,8 +38,11 @@ Supported emotions: `happy`, `sad`, `angry`, `neutral`, `surprise`, `fear`, `dis
 │   ├── src/
 │   │   ├── App.jsx
 │   │   ├── api/emotionApi.js
+│   │   ├── utils/
+│   │   │   └── textEmotionAnalyzer.js  # Client-side text analysis
 │   │   └── components/
 │   │       ├── WebcamCapture.jsx
+│   │       ├── TextVoiceInput.jsx      # Text & voice input
 │   │       ├── EmotionDisplay.jsx
 │   │       └── MusicGrid.jsx
 │   ├── Dockerfile
@@ -111,6 +120,7 @@ docker compose up --build
 | POST | `/analyze` | Detect emotion from base64 image |
 | POST | `/recommend` | Get tracks for a given emotion |
 | POST | `/analyze-and-recommend` | Detect + recommend in one call |
+| POST | `/analyze-text` | Detect emotion from text + recommend |
 
 ### Example – `/analyze-and-recommend`
 
@@ -171,6 +181,19 @@ docker compose up --build
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_API_URL` | `http://localhost:8000` | Backend base URL |
+
+---
+
+## 🌐 GitHub Pages Deployment
+
+The frontend can be deployed as a static site on GitHub Pages. When no backend is
+available, the app uses client-side text emotion analysis and returns mock tracks.
+
+1. Go to your repo **Settings → Pages → Source → GitHub Actions**.
+2. Push to `main` — the workflow at `.github/workflows/deploy.yml` builds and deploys automatically.
+
+> **Note:** Camera-based detection requires the backend. Text/voice-based mood detection
+> works fully client-side on GitHub Pages.
 
 ---
 
