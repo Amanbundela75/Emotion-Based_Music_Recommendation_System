@@ -2,11 +2,37 @@ import { useState, useCallback, useRef } from "react";
 import WebcamCapture from "./components/WebcamCapture";
 import EmotionDisplay from "./components/EmotionDisplay";
 import MusicGrid from "./components/MusicGrid";
-import { analyzeAndRecommend } from "./api/emotionApi";
+import TextVoiceInput from "./components/TextVoiceInput";
+import { analyzeAndRecommend, analyzeText, getRecommendations } from "./api/emotionApi";
+import { analyzeTextEmotion } from "./utils/textEmotionAnalyzer";
 
 const AUTO_DETECT_INTERVAL_MS = 5000;
 
+const EMOTION_GENRES = {
+  happy: "Pop",
+  sad: "Acoustic",
+  angry: "Rock",
+  neutral: "Lo-fi",
+  surprise: "Electronic",
+  fear: "Ambient",
+  disgust: "Punk",
+};
+
+function buildMockTracks(emotion, count = 10) {
+  const genre = EMOTION_GENRES[emotion] || "Lo-fi";
+  return Array.from({ length: count }, (_, i) => ({
+    id: `mock_${emotion}_${i}`,
+    name: `${genre} Track ${i + 1}`,
+    artist: "Demo Artist",
+    album: "Demo Album",
+    album_art: `https://via.placeholder.com/300x300.png?text=${encodeURIComponent(genre)}`,
+    spotify_url: "https://open.spotify.com",
+    preview_url: null,
+  }));
+}
+
 export default function App() {
+  const [mode, setMode] = useState(null); // null | "camera" | "text"
   const [showCamera, setShowCamera] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [isAutoDetect, setIsAutoDetect] = useState(false);
@@ -47,6 +73,37 @@ export default function App() {
     }
   };
 
+  const handleTextSubmit = useCallback(async (text) => {
+    setIsDetecting(true);
+    setError(null);
+    try {
+      // Try backend first, fall back to client-side analysis
+      let data;
+      try {
+        data = await analyzeText(text);
+      } catch {
+        // Backend unavailable – use client-side analysis + mock recommendations
+        const result = analyzeTextEmotion(text);
+        let recData;
+        try {
+          recData = await getRecommendations(result.emotion);
+        } catch {
+          // Build mock tracks client-side when backend is fully unavailable
+          recData = { tracks: buildMockTracks(result.emotion) };
+        }
+        data = { emotion: result.emotion, scores: result.scores, tracks: recData.tracks };
+      }
+      setEmotion(data.emotion);
+      setScores(data.scores);
+      setTracks(data.tracks);
+    } catch (err) {
+      const detail = err.response?.data?.detail ?? err.message ?? "Unknown error";
+      setError(`Analysis failed: ${detail}`);
+    } finally {
+      setIsDetecting(false);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-dark-900 text-white">
       {/* Header */}
@@ -62,22 +119,65 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
         {/* Hero */}
-        {!showCamera && !emotion && (
+        {!mode && !emotion && (
           <section className="text-center py-16 space-y-6">
             <div className="text-8xl mb-4">🎭</div>
             <h2 className="text-5xl font-extrabold bg-gradient-to-r from-purple-400 via-pink-400 to-yellow-400 bg-clip-text text-transparent">
               Feel the Music
             </h2>
             <p className="text-gray-400 max-w-md mx-auto text-lg">
-              Let your face pick your playlist. We detect your emotion in real
-              time and find the perfect tracks.
+              Let your face or your story pick your playlist. We detect your
+              emotion and find the perfect tracks.
             </p>
-            <button
-              className="btn-primary text-lg px-10 py-4"
-              onClick={() => setShowCamera(true)}
-            >
-              🎥 Start Camera
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                className="btn-primary text-lg px-10 py-4"
+                onClick={() => { setMode("camera"); setShowCamera(true); }}
+              >
+                🎥 Use Camera
+              </button>
+              <button
+                className="btn-primary text-lg px-10 py-4"
+                onClick={() => setMode("text")}
+              >
+                📝 Describe Your Day
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Text/Voice input section */}
+        {mode === "text" && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-300">
+                📝 Tell Us About Your Day
+              </h3>
+              <button
+                className="btn-secondary text-sm"
+                onClick={() => {
+                  setMode(null);
+                  setEmotion(null);
+                  setTracks([]);
+                  setScores(null);
+                }}
+              >
+                ← Back
+              </button>
+            </div>
+            <TextVoiceInput
+              onSubmit={handleTextSubmit}
+              isProcessing={isDetecting}
+            />
+            {/* Emotion result for text mode */}
+            {!isDetecting && emotion && scores && (
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold mb-4 text-gray-300">
+                  🎭 Detected Mood
+                </h3>
+                <EmotionDisplay emotion={emotion} scores={scores} />
+              </div>
+            )}
           </section>
         )}
 
@@ -110,6 +210,7 @@ export default function App() {
                     clearInterval(autoTimerRef.current);
                     setIsAutoDetect(false);
                     setShowCamera(false);
+                    setMode(null);
                     setEmotion(null);
                     setTracks([]);
                   }}
@@ -165,13 +266,19 @@ export default function App() {
         )}
 
         {/* "No camera yet" prompt when emotion is known but camera is closed */}
-        {!showCamera && emotion && (
-          <div className="text-center">
+        {!showCamera && !mode && emotion && (
+          <div className="text-center flex flex-col sm:flex-row gap-4 justify-center">
             <button
               className="btn-primary"
-              onClick={() => setShowCamera(true)}
+              onClick={() => { setMode("camera"); setShowCamera(true); }}
             >
               🎥 Detect Again
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => setMode("text")}
+            >
+              📝 Describe Your Day
             </button>
           </div>
         )}

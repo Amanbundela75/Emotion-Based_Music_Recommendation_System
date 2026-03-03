@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from emotion_detector import analyze_emotion
 from spotify_service import EMOTION_GENRE_MAP, get_recommendations
+from text_emotion_analyzer import analyze_text_emotion
 
 load_dotenv()
 
@@ -76,6 +77,13 @@ class TrackItem(BaseModel):
     album_art: Optional[str]
     spotify_url: str
     preview_url: Optional[str]
+
+
+class AnalyzeTextRequest(BaseModel):
+    text: str = Field(
+        ...,
+        description="Free-form text describing the user's day or incident.",
+    )
 
 
 class RecommendRequest(BaseModel):
@@ -152,6 +160,26 @@ def analyze_and_recommend(request: AnalyzeRequest):
     except Exception as exc:
         logger.exception("Unexpected error during emotion analysis")
         raise HTTPException(status_code=500, detail="Internal error during analysis.") from exc
+
+    tracks = get_recommendations(emotion=emotion, limit=10)
+    return FullAnalysisResponse(emotion=emotion, scores=scores, tracks=tracks)
+
+
+@app.post("/analyze-text", response_model=FullAnalysisResponse, tags=["emotion", "music"])
+def analyze_text(request: AnalyzeTextRequest):
+    """
+    Analyze emotion from a text description of the user's day/incident,
+    then fetch music recommendations matching the detected mood.
+    """
+    try:
+        emotion, scores = analyze_text_emotion(request.text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error during text emotion analysis")
+        raise HTTPException(
+            status_code=500, detail="Internal error during text analysis."
+        ) from exc
 
     tracks = get_recommendations(emotion=emotion, limit=10)
     return FullAnalysisResponse(emotion=emotion, scores=scores, tracks=tracks)

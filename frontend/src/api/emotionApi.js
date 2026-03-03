@@ -26,3 +26,13 @@ export async function getRecommendations(emotion, limit = 10) {
   const response = await api.post("/recommend", { emotion, limit });
   return response.data;
 }
+
+/**
+ * Send text describing the user's day to the backend for emotion analysis + recommendations.
+ * @param {string} text - User's text description
+ * @returns {Promise<{emotion: string, scores: object, tracks: Array}>}
+ */
+export async function analyzeText(text) {
+  const response = await api.post("/analyze-text", { text });
+  return response.data;
+}
