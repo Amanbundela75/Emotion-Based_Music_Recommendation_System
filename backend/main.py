@@ -275,9 +275,12 @@ def _get_tracks_from_queries(
     if sp is None:
         return _build_mock_tracks(emotion, limit)
 
+    if not music_queries:
+        return get_recommendations(emotion=emotion, limit=limit)
+
     tracks: List[dict] = []
     seen_ids: set = set()
-    per_query = max(1, limit // max(len(music_queries), 1))
+    per_query = max(1, limit // len(music_queries))
 
     for query in music_queries:
         if len(tracks) >= limit:

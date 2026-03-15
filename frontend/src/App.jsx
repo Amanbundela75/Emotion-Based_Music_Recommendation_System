@@ -159,7 +159,7 @@ export default function App() {
           Emotion Music
         </h1>
         <span className="ml-auto text-xs text-gray-500">
-          Powered by Gemini AI + Spotify
+          AI-Powered Music Recommendations
         </span>
       </header>
 
