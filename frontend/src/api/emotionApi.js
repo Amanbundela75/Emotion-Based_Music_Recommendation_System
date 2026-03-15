@@ -29,10 +29,26 @@ export async function getRecommendations(emotion, limit = 10) {
 
 /**
  * Send text describing the user's day to the backend for emotion analysis + recommendations.
+ * Uses Gemini API on the backend for accurate analysis, with keyword fallback.
  * @param {string} text - User's text description
  * @returns {Promise<{emotion: string, scores: object, tracks: Array}>}
  */
 export async function analyzeText(text) {
   const response = await api.post("/analyze-text", { text });
+  return response.data;
+}
+
+/**
+ * Gemini-powered analysis with mood preference.
+ * Call this after initial emotion detection to get tailored music recommendations.
+ * @param {string} text - User's text description
+ * @param {string} moodPreference - "uplifting" or "deeper"
+ * @returns {Promise<{emotion: string, scores: object, tracks: Array, gemini_powered: boolean}>}
+ */
+export async function analyzeTextWithGemini(text, moodPreference) {
+  const response = await api.post("/analyze-text-gemini", {
+    text,
+    mood_preference: moodPreference,
+  });
   return response.data;
 }
