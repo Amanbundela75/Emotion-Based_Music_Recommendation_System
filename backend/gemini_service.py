@@ -36,12 +36,13 @@ def _ensure_configured() -> bool:
 def analyze_emotion_with_gemini(
     text: str,
     mood_preference: Optional[str] = None,
-) -> Tuple[str, Dict[str, float], List[str]]:
+) -> Tuple[str, Dict[str, float], List[str], str]:
     """
     Use Gemini to analyse the user's incident text and return:
       - dominant emotion
       - confidence scores for all 7 emotions
-      - list of music search queries tailored to the incident + preference
+      - list of music search queries tailored to the incident
+      - a short empathetic / supportive message for the user
 
     Parameters
     ----------
@@ -49,11 +50,12 @@ def analyze_emotion_with_gemini(
         The user's free-form description of their incident / day.
     mood_preference : str | None
         ``"uplifting"`` or ``"deeper"`` — controls whether Gemini suggests
-        feel-good tracks or emotionally resonant ones.
+        feel-good tracks or emotionally resonant ones.  When *None* Gemini
+        decides the best direction automatically.
 
     Returns
     -------
-    (dominant_emotion, scores, music_queries)
+    (dominant_emotion, scores, music_queries, message)
 
     Raises
     ------
@@ -77,12 +79,13 @@ def analyze_emotion_with_gemini(
             "should reflect the raw emotional tone."
         )
 
-    prompt = f"""You are an emotion analysis and music recommendation expert.
+    prompt = f"""You are an empathetic emotion analysis and music recommendation expert.
 
 Analyze the following user incident/story and:
 1. Detect the PRIMARY emotion from these 7 options ONLY: happy, sad, angry, neutral, surprise, fear, disgust
 2. Provide confidence scores (0-100) for ALL 7 emotions that sum to 100
-3. Generate 5 specific music search queries that would find the BEST songs for this person's situation
+3. Write a short, warm, empathetic message (2-3 sentences) that acknowledges the user's feelings, offers supportive advice, and explains why you are recommending the music below
+4. Generate 5 specific music search queries that would find the BEST songs for this person's situation
 
 {preference_instruction}
 
@@ -102,6 +105,7 @@ Use this exact structure:
     "fear": 10,
     "disgust": 5
   }},
+  "message": "It sounds like you're going through a tough time. Remember, it's okay to feel this way. Here's some music to help you process your emotions and find comfort.",
   "music_queries": [
     "healing heartbreak songs",
     "songs about moving on",
@@ -146,7 +150,11 @@ Use this exact structure:
         if not isinstance(music_queries, list):
             music_queries = []
 
-        return emotion, scores, music_queries
+        message = data.get("message", "")
+        if not isinstance(message, str):
+            message = ""
+
+        return emotion, scores, music_queries, message
 
     except json.JSONDecodeError as exc:
         logger.error("Gemini returned invalid JSON: %s", exc)
