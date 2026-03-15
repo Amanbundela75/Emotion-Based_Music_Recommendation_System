@@ -114,12 +114,14 @@ class FullAnalysisResponse(BaseModel):
     emotion: str
     scores: Dict[str, float]
     tracks: List[TrackItem]
+    message: Optional[str] = None
 
 
 class GeminiAnalysisResponse(BaseModel):
     emotion: str
     scores: Dict[str, float]
     tracks: List[TrackItem]
+    message: Optional[str] = None
     gemini_powered: bool = True
 
 
@@ -196,9 +198,9 @@ def analyze_text(request: AnalyzeTextRequest):
     """
     # Try Gemini first
     try:
-        emotion, scores, music_queries = analyze_emotion_with_gemini(request.text)
+        emotion, scores, music_queries, message = analyze_emotion_with_gemini(request.text)
         tracks = _get_tracks_from_queries(music_queries, emotion)
-        return FullAnalysisResponse(emotion=emotion, scores=scores, tracks=tracks)
+        return FullAnalysisResponse(emotion=emotion, scores=scores, tracks=tracks, message=message)
     except RuntimeError:
         logger.info("Gemini unavailable, falling back to keyword analysis")
     except Exception:
@@ -240,7 +242,7 @@ def analyze_text_gemini(request: AnalyzeTextGeminiRequest):
         )
 
     try:
-        emotion, scores, music_queries = analyze_emotion_with_gemini(
+        emotion, scores, music_queries, message = analyze_emotion_with_gemini(
             request.text, mood_preference=request.mood_preference
         )
     except RuntimeError as exc:
@@ -253,7 +255,7 @@ def analyze_text_gemini(request: AnalyzeTextGeminiRequest):
 
     tracks = _get_tracks_from_queries(music_queries, emotion)
     return GeminiAnalysisResponse(
-        emotion=emotion, scores=scores, tracks=tracks, gemini_powered=True
+        emotion=emotion, scores=scores, tracks=tracks, message=message, gemini_powered=True
     )
 
 

@@ -3,8 +3,7 @@ import WebcamCapture from "./components/WebcamCapture";
 import EmotionDisplay from "./components/EmotionDisplay";
 import MusicGrid from "./components/MusicGrid";
 import TextVoiceInput from "./components/TextVoiceInput";
-import MoodSelector from "./components/MoodSelector";
-import { analyzeAndRecommend, analyzeText, analyzeTextWithGemini, getRecommendations } from "./api/emotionApi";
+import { analyzeAndRecommend, analyzeTextWithGemini, analyzeText, getRecommendations } from "./api/emotionApi";
 import { analyzeTextEmotion } from "./utils/textEmotionAnalyzer";
 
 const AUTO_DETECT_INTERVAL_MS = 5000;
@@ -41,9 +40,7 @@ export default function App() {
   const [scores, setScores] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [error, setError] = useState(null);
-  const [userText, setUserText] = useState("");           // Store the user's incident text
-  const [showMoodSelector, setShowMoodSelector] = useState(false); // Show mood preference
-  const [isMoodLoading, setIsMoodLoading] = useState(false);
+  const [geminiMessage, setGeminiMessage] = useState("");
   const [geminiPowered, setGeminiPowered] = useState(false);
   const autoTimerRef = useRef(null);
   const lastImageRef = useRef(null);
@@ -81,33 +78,37 @@ export default function App() {
   const handleTextSubmit = useCallback(async (text) => {
     setIsDetecting(true);
     setError(null);
-    setUserText(text);
-    setShowMoodSelector(false);
     setTracks([]);
     setGeminiPowered(false);
+    setGeminiMessage("");
     try {
-      // Try backend first, fall back to client-side analysis
+      // Try Gemini-powered analysis first for direct response + music
       let data;
       try {
-        data = await analyzeText(text);
-        setGeminiPowered(!!data.gemini_powered);
+        data = await analyzeTextWithGemini(text);
+        setGeminiPowered(true);
+        if (data.message) setGeminiMessage(data.message);
       } catch {
-        // Backend unavailable – use client-side analysis + mock recommendations
-        const result = analyzeTextEmotion(text);
-        let recData;
+        // Gemini endpoint unavailable – try basic backend analysis
         try {
-          recData = await getRecommendations(result.emotion);
+          data = await analyzeText(text);
+          setGeminiPowered(!!data.gemini_powered);
+          if (data.message) setGeminiMessage(data.message);
         } catch {
-          // Build mock tracks client-side when backend is fully unavailable
-          recData = { tracks: buildMockTracks(result.emotion) };
+          // Backend fully unavailable – use client-side analysis + mock recommendations
+          const result = analyzeTextEmotion(text);
+          let recData;
+          try {
+            recData = await getRecommendations(result.emotion);
+          } catch {
+            recData = { tracks: buildMockTracks(result.emotion) };
+          }
+          data = { emotion: result.emotion, scores: result.scores, tracks: recData.tracks };
         }
-        data = { emotion: result.emotion, scores: result.scores, tracks: recData.tracks };
       }
       setEmotion(data.emotion);
       setScores(data.scores);
       setTracks(data.tracks);
-      // Show mood selector so user can choose uplifting vs deeper
-      setShowMoodSelector(true);
     } catch (err) {
       const detail = err.response?.data?.detail ?? err.message ?? "Unknown error";
       setError(`Analysis failed: ${detail}`);
@@ -115,40 +116,6 @@ export default function App() {
       setIsDetecting(false);
     }
   }, []);
-
-  const handleMoodSelect = useCallback(async (preference) => {
-    if (!userText) return;
-    setIsMoodLoading(true);
-    setError(null);
-    try {
-      // Try Gemini-powered analysis with mood preference
-      let data;
-      try {
-        data = await analyzeTextWithGemini(userText, preference);
-        setGeminiPowered(true);
-      } catch {
-        // Fallback: use the existing emotion to get recommendations
-        const emotionForRec = preference === "uplifting" ? "happy" : (emotion || "neutral");
-        let recData;
-        try {
-          recData = await getRecommendations(emotionForRec);
-        } catch {
-          recData = { tracks: buildMockTracks(emotionForRec) };
-        }
-        data = { emotion: emotion || "neutral", scores: scores || {}, tracks: recData.tracks };
-      }
-      setEmotion(data.emotion);
-      if (data.scores && Object.keys(data.scores).length > 0) {
-        setScores(data.scores);
-      }
-      setTracks(data.tracks);
-    } catch (err) {
-      const detail = err.response?.data?.detail ?? err.message ?? "Unknown error";
-      setError(`Failed to get recommendations: ${detail}`);
-    } finally {
-      setIsMoodLoading(false);
-    }
-  }, [userText, emotion, scores]);
 
   return (
     <div className="min-h-screen bg-dark-900 text-white">
@@ -206,9 +173,8 @@ export default function App() {
                   setEmotion(null);
                   setTracks([]);
                   setScores(null);
-                  setShowMoodSelector(false);
-                  setUserText("");
                   setGeminiPowered(false);
+                  setGeminiMessage("");
                 }}
               >
                 ← Back
@@ -218,30 +184,29 @@ export default function App() {
               onSubmit={handleTextSubmit}
               isProcessing={isDetecting}
             />
-            {/* Emotion result for text mode */}
-            {!isDetecting && emotion && scores && (
-              <div className="mt-4 space-y-4">
+            {/* Gemini supportive message */}
+            {!isDetecting && geminiMessage && (
+              <div className="mt-4 card border border-emerald-700/50 bg-emerald-900/20 space-y-2">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold text-gray-300">
-                    🎭 Detected Mood
-                  </h3>
+                  <span className="text-2xl">💬</span>
+                  <h3 className="text-lg font-semibold text-emerald-300">AI Response</h3>
                   {geminiPowered && (
                     <span className="text-xs bg-emerald-900/40 border border-emerald-700 text-emerald-300 px-2 py-0.5 rounded-full">
                       ✨ AI Powered
                     </span>
                   )}
                 </div>
-                <EmotionDisplay emotion={emotion} scores={scores} />
+                <p className="text-gray-300 text-sm leading-relaxed">{geminiMessage}</p>
               </div>
             )}
 
-            {/* Mood selector – appears after emotion detection */}
-            {!isDetecting && emotion && showMoodSelector && (
-              <div className="mt-4">
-                <MoodSelector
-                  onSelect={handleMoodSelect}
-                  isLoading={isMoodLoading}
-                />
+            {/* Emotion result for text mode */}
+            {!isDetecting && emotion && scores && (
+              <div className="mt-4 space-y-4">
+                <h3 className="text-lg font-semibold text-gray-300">
+                  🎭 Detected Mood
+                </h3>
+                <EmotionDisplay emotion={emotion} scores={scores} />
               </div>
             )}
           </section>
