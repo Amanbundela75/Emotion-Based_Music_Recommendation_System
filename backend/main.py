@@ -9,6 +9,8 @@ GET  /            — health check
 POST /analyze     — accepts a base64 image, returns detected emotion + scores
 POST /recommend   — accepts emotion string, returns Spotify track list
 POST /analyze-and-recommend — convenience: image → emotion + tracks in one call
+POST /analyze-text — text emotion analysis (Gemini first, keyword fallback)
+POST /analyze-text-gemini — Gemini-powered analysis with mood preference
 """
 
 import logging
@@ -21,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from emotion_detector import analyze_emotion
+from gemini_service import analyze_emotion_with_gemini
 from spotify_service import EMOTION_GENRE_MAP, get_recommendations
 from text_emotion_analyzer import analyze_text_emotion
 
@@ -36,9 +39,9 @@ app = FastAPI(
     title="Emotion-Based Music Recommendation API",
     description=(
         "Detects facial emotion from an image and recommends music tracks "
-        "via the Spotify Web API."
+        "via the Spotify Web API. Uses Google Gemini for accurate text analysis."
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
@@ -86,6 +89,17 @@ class AnalyzeTextRequest(BaseModel):
     )
 
 
+class AnalyzeTextGeminiRequest(BaseModel):
+    text: str = Field(
+        ...,
+        description="Free-form text describing the user's day or incident.",
+    )
+    mood_preference: Optional[str] = Field(
+        None,
+        description="'uplifting' for mood-boosting music, 'deeper' for emotionally resonant music.",
+    )
+
+
 class RecommendRequest(BaseModel):
     emotion: str = Field(..., description="Emotion label, e.g. 'happy', 'sad'.")
     limit: int = Field(10, ge=1, le=50, description="Number of tracks to return.")
@@ -100,6 +114,13 @@ class FullAnalysisResponse(BaseModel):
     emotion: str
     scores: Dict[str, float]
     tracks: List[TrackItem]
+
+
+class GeminiAnalysisResponse(BaseModel):
+    emotion: str
+    scores: Dict[str, float]
+    tracks: List[TrackItem]
+    gemini_powered: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -168,9 +189,22 @@ def analyze_and_recommend(request: AnalyzeRequest):
 @app.post("/analyze-text", response_model=FullAnalysisResponse, tags=["emotion", "music"])
 def analyze_text(request: AnalyzeTextRequest):
     """
-    Analyze emotion from a text description of the user's day/incident,
-    then fetch music recommendations matching the detected mood.
+    Analyze emotion from a text description of the user's day/incident.
+
+    Tries Gemini API first for accurate contextual analysis, then falls
+    back to the keyword-based analyser if Gemini is unavailable.
     """
+    # Try Gemini first
+    try:
+        emotion, scores, music_queries = analyze_emotion_with_gemini(request.text)
+        tracks = _get_tracks_from_queries(music_queries, emotion)
+        return FullAnalysisResponse(emotion=emotion, scores=scores, tracks=tracks)
+    except RuntimeError:
+        logger.info("Gemini unavailable, falling back to keyword analysis")
+    except Exception:
+        logger.exception("Gemini analysis failed, falling back to keyword analysis")
+
+    # Fallback to keyword-based
     try:
         emotion, scores = analyze_text_emotion(request.text)
     except ValueError as exc:
@@ -183,3 +217,102 @@ def analyze_text(request: AnalyzeTextRequest):
 
     tracks = get_recommendations(emotion=emotion, limit=10)
     return FullAnalysisResponse(emotion=emotion, scores=scores, tracks=tracks)
+
+
+@app.post(
+    "/analyze-text-gemini",
+    response_model=GeminiAnalysisResponse,
+    tags=["emotion", "music"],
+)
+def analyze_text_gemini(request: AnalyzeTextGeminiRequest):
+    """
+    Gemini-powered text analysis with optional mood preference.
+
+    After the user shares their incident, the frontend should call this
+    endpoint with ``mood_preference`` set to either ``"uplifting"`` (mood-
+    boosting tracks) or ``"deeper"`` (emotionally resonant tracks) to get
+    personalised music recommendations.
+    """
+    if request.mood_preference and request.mood_preference not in ("uplifting", "deeper"):
+        raise HTTPException(
+            status_code=422,
+            detail="mood_preference must be 'uplifting' or 'deeper'.",
+        )
+
+    try:
+        emotion, scores, music_queries = analyze_emotion_with_gemini(
+            request.text, mood_preference=request.mood_preference
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Gemini analysis failed")
+        raise HTTPException(
+            status_code=500, detail="Internal error during Gemini analysis."
+        ) from exc
+
+    tracks = _get_tracks_from_queries(music_queries, emotion)
+    return GeminiAnalysisResponse(
+        emotion=emotion, scores=scores, tracks=tracks, gemini_powered=True
+    )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_tracks_from_queries(
+    music_queries: List[str], emotion: str, limit: int = 10
+) -> List[dict]:
+    """
+    Try to fetch Spotify tracks using the Gemini-suggested search queries.
+    Falls back to the standard emotion-based recommendations if queries fail.
+    """
+    from spotify_service import _get_spotify_client, _build_mock_tracks
+
+    sp = _get_spotify_client()
+    if sp is None:
+        return _build_mock_tracks(emotion, limit)
+
+    if not music_queries:
+        return get_recommendations(emotion=emotion, limit=limit)
+
+    tracks: List[dict] = []
+    seen_ids: set = set()
+    per_query = max(1, limit // len(music_queries))
+
+    for query in music_queries:
+        if len(tracks) >= limit:
+            break
+        try:
+            results = sp.search(q=query, type="track", limit=per_query + 2)
+            for item in results.get("tracks", {}).get("items", []):
+                if item["id"] in seen_ids:
+                    continue
+                seen_ids.add(item["id"])
+                album_images = item.get("album", {}).get("images", [])
+                album_art = album_images[0]["url"] if album_images else None
+                artists = ", ".join(a["name"] for a in item.get("artists", []))
+                tracks.append(
+                    {
+                        "id": item["id"],
+                        "name": item["name"],
+                        "artist": artists,
+                        "album": item.get("album", {}).get("name", ""),
+                        "album_art": album_art,
+                        "spotify_url": item.get("external_urls", {}).get("spotify", ""),
+                        "preview_url": item.get("preview_url"),
+                    }
+                )
+                if len(tracks) >= limit:
+                    break
+        except Exception as exc:
+            logger.warning("Spotify search for query '%s' failed: %s", query, exc)
+            continue
+
+    # If Gemini queries yielded nothing, fall back to standard recommendations
+    if not tracks:
+        return get_recommendations(emotion=emotion, limit=limit)
+
+    return tracks[:limit]
