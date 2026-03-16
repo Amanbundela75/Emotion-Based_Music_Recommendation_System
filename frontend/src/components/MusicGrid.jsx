@@ -43,16 +43,26 @@ export default function MusicGrid({ tracks }) {
 
 /**
  * NowPlaying – embedded player bar that plays music on the same page.
- * Uses Spotify embed iframe for Spotify tracks, or HTML5 audio for preview URLs.
+ * Uses Spotify embed iframe for Spotify tracks, HTML5 audio for preview URLs,
+ * or opens YouTube in a new tab for YouTube tracks.
  * Remounts (via key) when a different track is selected, resetting all state.
  */
 function NowPlaying({ track, onClose }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Determine if we can use Spotify embed
+  // Determine the source type
+  const isYouTube =
+    track.youtube_url &&
+    (track.youtube_url.includes("youtube.com") ||
+      track.youtube_url.includes("music.youtube.com"));
+  const isYouTubeVideo =
+    isYouTube && track.id && !track.id.startsWith("yt_search_");
+
   const spotifyTrackId =
-    track.spotify_url && !track.id.startsWith("mock_")
+    track.spotify_url &&
+    !track.id.startsWith("mock_") &&
+    !isYouTube
       ? track.id
       : null;
 
@@ -100,7 +110,20 @@ function NowPlaying({ track, onClose }) {
 
       {/* Player content */}
       <div className="p-4">
-        {useSpotifyEmbed && spotifyTrackId ? (
+        {isYouTubeVideo ? (
+          /* YouTube embed */
+          <iframe
+            src={`https://www.youtube.com/embed/${track.id}?autoplay=1`}
+            width="100%"
+            height="200"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            className="rounded-xl"
+            title={`Play ${track.name} by ${track.artist}`}
+          />
+        ) : useSpotifyEmbed && spotifyTrackId ? (
           /* Spotify Embed iframe */
           <iframe
             src={`https://open.spotify.com/embed/track/${spotifyTrackId}?utm_source=generator&theme=0`}
@@ -183,8 +206,20 @@ function TrackCard({ track, isActive, onPlay }) {
     track.name.slice(0, 2)
   )}`;
 
+  // Determine the external link: prefer YouTube, then Spotify
+  const externalUrl = track.youtube_url || track.spotify_url || null;
+  const isYouTube =
+    externalUrl &&
+    (externalUrl.includes("youtube.com") ||
+      externalUrl.includes("music.youtube.com"));
+
   const handleClick = (e) => {
     e.preventDefault();
+    // If it's a YouTube search link (no real video ID), open externally
+    if (isYouTube && track.id.startsWith("yt_search_")) {
+      window.open(externalUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
     onPlay();
   };
 
@@ -199,7 +234,7 @@ function TrackCard({ track, isActive, onPlay }) {
       <div className="relative w-full aspect-square overflow-hidden">
         <img
           src={track.album_art || placeholder}
-          alt={`${track.album} cover`}
+          alt={`${track.album || track.name} cover`}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
             e.currentTarget.src = placeholder;
@@ -207,8 +242,16 @@ function TrackCard({ track, isActive, onPlay }) {
         />
         {/* Play overlay */}
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-          <span className="text-4xl">{isActive ? "🎵" : "▶️"}</span>
+          <span className="text-4xl">
+            {isActive ? "🎵" : isYouTube ? "▶️" : "▶️"}
+          </span>
         </div>
+        {/* YouTube badge */}
+        {isYouTube && (
+          <div className="absolute top-1.5 right-1.5 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+            YT
+          </div>
+        )}
       </div>
 
       {/* Track info */}

@@ -2,34 +2,10 @@ import { useState, useCallback, useRef } from "react";
 import WebcamCapture from "./components/WebcamCapture";
 import EmotionDisplay from "./components/EmotionDisplay";
 import MusicGrid from "./components/MusicGrid";
-import TextVoiceInput from "./components/TextVoiceInput";
-import { analyzeAndRecommend, analyzeTextWithGemini, analyzeText, getRecommendations } from "./api/emotionApi";
-import { analyzeTextEmotion } from "./utils/textEmotionAnalyzer";
+import ChatInterface from "./components/ChatInterface";
+import { analyzeAndRecommend } from "./api/emotionApi";
 
 const AUTO_DETECT_INTERVAL_MS = 5000;
-
-const EMOTION_GENRES = {
-  happy: "Pop",
-  sad: "Acoustic",
-  angry: "Rock",
-  neutral: "Lo-fi",
-  surprise: "Electronic",
-  fear: "Ambient",
-  disgust: "Punk",
-};
-
-function buildMockTracks(emotion, count = 10) {
-  const genre = EMOTION_GENRES[emotion] || "Lo-fi";
-  return Array.from({ length: count }, (_, i) => ({
-    id: `mock_${emotion}_${i}`,
-    name: `${genre} Track ${i + 1}`,
-    artist: "Demo Artist",
-    album: "Demo Album",
-    album_art: `https://via.placeholder.com/300x300.png?text=${encodeURIComponent(genre)}`,
-    spotify_url: "https://open.spotify.com",
-    preview_url: null,
-  }));
-}
 
 export default function App() {
   const [mode, setMode] = useState(null); // null | "camera" | "text"
@@ -40,8 +16,6 @@ export default function App() {
   const [scores, setScores] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [error, setError] = useState(null);
-  const [geminiMessage, setGeminiMessage] = useState("");
-  const [geminiPowered, setGeminiPowered] = useState(false);
   const autoTimerRef = useRef(null);
   const lastImageRef = useRef(null);
 
@@ -74,48 +48,6 @@ export default function App() {
       }, AUTO_DETECT_INTERVAL_MS);
     }
   };
-
-  const handleTextSubmit = useCallback(async (text) => {
-    setIsDetecting(true);
-    setError(null);
-    setTracks([]);
-    setGeminiPowered(false);
-    setGeminiMessage("");
-    try {
-      // Try Gemini-powered analysis first for direct response + music
-      let data;
-      try {
-        data = await analyzeTextWithGemini(text);
-        setGeminiPowered(true);
-        if (data.message) setGeminiMessage(data.message);
-      } catch {
-        // Gemini endpoint unavailable – try basic backend analysis
-        try {
-          data = await analyzeText(text);
-          setGeminiPowered(!!data.gemini_powered);
-          if (data.message) setGeminiMessage(data.message);
-        } catch {
-          // Backend fully unavailable – use client-side analysis + mock recommendations
-          const result = analyzeTextEmotion(text);
-          let recData;
-          try {
-            recData = await getRecommendations(result.emotion);
-          } catch {
-            recData = { tracks: buildMockTracks(result.emotion) };
-          }
-          data = { emotion: result.emotion, scores: result.scores, tracks: recData.tracks };
-        }
-      }
-      setEmotion(data.emotion);
-      setScores(data.scores);
-      setTracks(data.tracks);
-    } catch (err) {
-      const detail = err.response?.data?.detail ?? err.message ?? "Unknown error";
-      setError(`Analysis failed: ${detail}`);
-    } finally {
-      setIsDetecting(false);
-    }
-  }, []);
 
   return (
     <div className="min-h-screen bg-dark-900 text-white">
@@ -159,56 +91,14 @@ export default function App() {
           </section>
         )}
 
-        {/* Text/Voice input section */}
+        {/* Chat/AI Companion section (text mode) */}
         {mode === "text" && (
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-300">
-                📝 Share What Happened
-              </h3>
-              <button
-                className="btn-secondary text-sm"
-                onClick={() => {
-                  setMode(null);
-                  setEmotion(null);
-                  setTracks([]);
-                  setScores(null);
-                  setGeminiPowered(false);
-                  setGeminiMessage("");
-                }}
-              >
-                ← Back
-              </button>
-            </div>
-            <TextVoiceInput
-              onSubmit={handleTextSubmit}
-              isProcessing={isDetecting}
+            <ChatInterface
+              onBack={() => {
+                setMode(null);
+              }}
             />
-            {/* Gemini supportive message */}
-            {!isDetecting && geminiMessage && (
-              <div className="mt-4 card border border-emerald-700/50 bg-emerald-900/20 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">💬</span>
-                  <h3 className="text-lg font-semibold text-emerald-300">AI Response</h3>
-                  {geminiPowered && (
-                    <span className="text-xs bg-emerald-900/40 border border-emerald-700 text-emerald-300 px-2 py-0.5 rounded-full">
-                      ✨ AI Powered
-                    </span>
-                  )}
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed">{geminiMessage}</p>
-              </div>
-            )}
-
-            {/* Emotion result for text mode */}
-            {!isDetecting && emotion && scores && (
-              <div className="mt-4 space-y-4">
-                <h3 className="text-lg font-semibold text-gray-300">
-                  🎭 Detected Mood
-                </h3>
-                <EmotionDisplay emotion={emotion} scores={scores} />
-              </div>
-            )}
           </section>
         )}
 
