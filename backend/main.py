@@ -78,7 +78,7 @@ class TrackItem(BaseModel):
     artist: str
     album: str
     album_art: Optional[str]
-    spotify_url: str
+    spotify_url: Optional[str] = None
     preview_url: Optional[str]
     youtube_url: Optional[str] = None
 

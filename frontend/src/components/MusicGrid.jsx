@@ -1,6 +1,24 @@
 import { useState, useRef } from "react";
 
 /**
+ * Returns true if the URL hostname belongs to YouTube or YouTube Music.
+ * Uses URL parsing to avoid substring-matching exploits.
+ */
+function isYouTubeUrl(url) {
+  if (!url) return false;
+  try {
+    const { hostname } = new URL(url);
+    return (
+      hostname === "youtube.com" ||
+      hostname === "www.youtube.com" ||
+      hostname === "music.youtube.com"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * MusicGrid – renders a grid of recommended music tracks with inline playback.
  *
  * Props:
@@ -52,10 +70,7 @@ function NowPlaying({ track, onClose }) {
   const [isPlaying, setIsPlaying] = useState(false);
 
   // Determine the source type
-  const isYouTube =
-    track.youtube_url &&
-    (track.youtube_url.includes("youtube.com") ||
-      track.youtube_url.includes("music.youtube.com"));
+  const isYouTube = isYouTubeUrl(track.youtube_url);
   const isYouTubeVideo =
     isYouTube && track.id && !track.id.startsWith("yt_search_");
 
@@ -208,10 +223,7 @@ function TrackCard({ track, isActive, onPlay }) {
 
   // Determine the external link: prefer YouTube, then Spotify
   const externalUrl = track.youtube_url || track.spotify_url || null;
-  const isYouTube =
-    externalUrl &&
-    (externalUrl.includes("youtube.com") ||
-      externalUrl.includes("music.youtube.com"));
+  const isYouTube = isYouTubeUrl(externalUrl);
 
   const handleClick = (e) => {
     e.preventDefault();
@@ -243,7 +255,7 @@ function TrackCard({ track, isActive, onPlay }) {
         {/* Play overlay */}
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
           <span className="text-4xl">
-            {isActive ? "🎵" : isYouTube ? "▶️" : "▶️"}
+            {isActive ? "🎵" : "▶️"}
           </span>
         </div>
         {/* YouTube badge */}

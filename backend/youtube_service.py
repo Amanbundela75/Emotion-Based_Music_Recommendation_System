@@ -64,7 +64,7 @@ def get_youtube_tracks(queries: List[str], emotion: str, limit: int = 10) -> Lis
                             "artist": channel,
                             "album": "",
                             "album_art": thumb,
-                            "spotify_url": f"https://www.youtube.com/watch?v={vid_id}",
+                            "spotify_url": "",
                             "preview_url": None,
                             "youtube_url": f"https://www.youtube.com/watch?v={vid_id}",
                         }
@@ -107,7 +107,7 @@ def _build_youtube_search_tracks(queries: List[str], limit: int) -> List[Dict]:
                     "https://www.gstatic.com/youtube/img/branding/"
                     "youtubelogo/svg/youtubelogo.svg"
                 ),
-                "spotify_url": search_url,
+                "spotify_url": "",
                 "preview_url": None,
                 "youtube_url": search_url,
             }
