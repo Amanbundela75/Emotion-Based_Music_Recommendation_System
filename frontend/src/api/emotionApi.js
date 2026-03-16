@@ -39,16 +39,12 @@ export async function analyzeText(text) {
 }
 
 /**
- * Gemini-powered analysis with mood preference.
- * Call this after initial emotion detection to get tailored music recommendations.
- * @param {string} text - User's text description
- * @param {string} moodPreference - "uplifting" or "deeper"
- * @returns {Promise<{emotion: string, scores: object, tracks: Array, gemini_powered: boolean}>}
+ * Send a multi-turn chat message to the empathetic AI chatbot.
+ * @param {Array<{role: string, content: string}>} messages - Full conversation history,
+ *   ending with the new user message (role="user").
+ * @returns {Promise<{reply: string}>}
  */
-export async function analyzeTextWithGemini(text, moodPreference) {
-  const response = await api.post("/analyze-text-gemini", {
-    text,
-    mood_preference: moodPreference,
-  });
+export async function sendChatMessage(messages) {
+  const response = await api.post("/chat", { messages });
   return response.data;
 }

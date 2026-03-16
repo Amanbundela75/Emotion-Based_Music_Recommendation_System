@@ -162,3 +162,64 @@ Use this exact structure:
     except Exception as exc:
         logger.error("Gemini API call failed: %s", exc)
         raise RuntimeError(f"Gemini API error: {exc}") from exc
+
+
+_CHAT_SYSTEM_PROMPT = (
+    "You are an empathetic AI companion and mental wellness assistant. "
+    "Your role is to:\n"
+    "1. Listen carefully to users' problems and incidents.\n"
+    "2. Provide emotional support and practical, actionable solutions.\n"
+    "3. Suggest coping strategies and concrete next steps.\n"
+    "4. Be warm, understanding, and non-judgmental.\n"
+    "5. Help users feel heard and supported.\n\n"
+    "Keep responses warm and concise (3-5 sentences). "
+    "Always acknowledge the user's feelings first, then offer practical advice."
+)
+
+
+def chat_with_gemini(messages: List[dict]) -> str:
+    """
+    Multi-turn empathetic chat powered by Gemini.
+
+    Parameters
+    ----------
+    messages : list of dict
+        Conversation history.  Each entry must have ``"role"``
+        (``"user"`` or ``"assistant"``) and ``"content"`` keys.
+        The last entry is the new user message.
+
+    Returns
+    -------
+    str
+        Gemini's reply text.
+
+    Raises
+    ------
+    RuntimeError
+        If the Gemini API is not configured or the call fails.
+    """
+    if not _ensure_configured():
+        raise RuntimeError("Gemini API key is not configured.")
+
+    if not messages:
+        raise ValueError("messages list must not be empty.")
+
+    try:
+        model = genai.GenerativeModel(
+            "gemini-2.0-flash",
+            system_instruction=_CHAT_SYSTEM_PROMPT,
+        )
+
+        # Build history for multi-turn chat (all messages except the last).
+        history = []
+        for msg in messages[:-1]:
+            role = "user" if msg["role"] == "user" else "model"
+            history.append({"role": role, "parts": [msg["content"]]})
+
+        chat_session = model.start_chat(history=history)
+        response = chat_session.send_message(messages[-1]["content"])
+        return response.text.strip()
+
+    except Exception as exc:
+        logger.error("Gemini chat failed: %s", exc)
+        raise RuntimeError(f"Gemini chat error: {exc}") from exc

@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from emotion_detector import analyze_emotion
-from gemini_service import analyze_emotion_with_gemini
+from gemini_service import analyze_emotion_with_gemini, chat_with_gemini
 from spotify_service import EMOTION_GENRE_MAP, get_recommendations
 from text_emotion_analyzer import analyze_text_emotion
 
@@ -78,8 +78,9 @@ class TrackItem(BaseModel):
     artist: str
     album: str
     album_art: Optional[str]
-    spotify_url: str
+    spotify_url: Optional[str] = None
     preview_url: Optional[str]
+    youtube_url: Optional[str] = None
 
 
 class AnalyzeTextRequest(BaseModel):
@@ -123,6 +124,21 @@ class GeminiAnalysisResponse(BaseModel):
     tracks: List[TrackItem]
     message: Optional[str] = None
     gemini_powered: bool = True
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str = Field(..., description="Message text.")
+
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage] = Field(
+        ..., description="Full conversation history, ending with the new user message."
+    )
+
+
+class ChatResponse(BaseModel):
+    reply: str
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +275,35 @@ def analyze_text_gemini(request: AnalyzeTextGeminiRequest):
     )
 
 
+@app.post("/chat", response_model=ChatResponse, tags=["chat"])
+def chat(request: ChatRequest):
+    """
+    Multi-turn empathetic chatbot powered by Gemini.
+
+    Accepts the full conversation history (user + assistant turns) ending
+    with the latest user message, and returns Gemini's reply.
+    """
+    if not request.messages:
+        raise HTTPException(status_code=422, detail="messages list must not be empty.")
+
+    last_role = request.messages[-1].role
+    if last_role != "user":
+        raise HTTPException(
+            status_code=422, detail="The last message must have role='user'."
+        )
+
+    messages = [{"role": m.role, "content": m.content} for m in request.messages]
+
+    try:
+        reply = chat_with_gemini(messages)
+        return ChatResponse(reply=reply)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Chat endpoint failed")
+        raise HTTPException(status_code=500, detail="Internal error during chat.") from exc
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -268,14 +313,20 @@ def _get_tracks_from_queries(
     music_queries: List[str], emotion: str, limit: int = 10
 ) -> List[dict]:
     """
-    Try to fetch Spotify tracks using the Gemini-suggested search queries.
-    Falls back to the standard emotion-based recommendations if queries fail.
+    Try to fetch tracks using the Gemini-suggested search queries.
+
+    Priority:
+    1. Spotify (if credentials configured)
+    2. YouTube via youtubesearchpython (no credentials needed)
+    3. YouTube Music search URL fallback
     """
     from spotify_service import _get_spotify_client, _build_mock_tracks
+    from youtube_service import get_youtube_tracks
 
     sp = _get_spotify_client()
     if sp is None:
-        return _build_mock_tracks(emotion, limit)
+        # No Spotify – use YouTube as the real music source
+        return get_youtube_tracks(music_queries, emotion, limit)
 
     if not music_queries:
         return get_recommendations(emotion=emotion, limit=limit)
@@ -305,6 +356,7 @@ def _get_tracks_from_queries(
                         "album_art": album_art,
                         "spotify_url": item.get("external_urls", {}).get("spotify", ""),
                         "preview_url": item.get("preview_url"),
+                        "youtube_url": None,
                     }
                 )
                 if len(tracks) >= limit:
