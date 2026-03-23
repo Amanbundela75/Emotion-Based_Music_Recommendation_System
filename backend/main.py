@@ -394,6 +394,13 @@ def _offline_chat_reply(messages: List[dict]) -> str:
     Lightweight, non-Gemini fallback reply for the chat endpoint.
     Uses the keyword-based text emotion analyser to craft a warm response so
     the chat feature keeps working even without Gemini credentials.
+
+    Parameters
+    ----------
+    messages : List[dict]
+        Conversation history as a list of dictionaries with a ``content`` key
+        containing the latest user message string (matches the chat endpoint
+        payload).
     """
     if not messages:
         return DEFAULT_OFFLINE_REPLY
