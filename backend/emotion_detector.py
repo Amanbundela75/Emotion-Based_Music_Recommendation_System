@@ -33,7 +33,7 @@ def _ensure_results_present(results):
     if not results:
         raise ValueError(NO_FACE_MESSAGE)
     if isinstance(results, list):
-        first = results[0] if results else {}
+        first = results[0]
         if not isinstance(first, dict) or "dominant_emotion" not in first:
             raise ValueError(NO_FACE_MESSAGE)
     if isinstance(results, dict) and "dominant_emotion" not in results:
