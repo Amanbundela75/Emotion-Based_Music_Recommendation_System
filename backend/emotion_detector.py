@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 
 # Emotions supported by DeepFace that we expose
 SUPPORTED_EMOTIONS = {"angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"}
+NO_FACE_MSG = "No face detected in the image."
+
+
+def _ensure_results_present(results):
+    """Raise a ValueError if DeepFace returned no detections."""
+    if not results:
+        raise ValueError(NO_FACE_MSG)
 
 
 def _base64_to_numpy(image_b64: str) -> np.ndarray:
@@ -58,7 +65,6 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
         frame = _base64_to_numpy(image_b64)
     except Exception as exc:
         raise ValueError(f"Could not decode image: {exc}") from exc
-
     try:
         results = DeepFace.analyze(
             img_path=frame,
@@ -66,8 +72,24 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
             enforce_detection=True,
             silent=True,
         )
+        _ensure_results_present(results)
     except Exception as exc:
-        raise ValueError(f"No face detected in the image: {exc}") from exc
+        # Retry with relaxed detection to avoid hard failures when a face is present
+        # but the strict detector cannot lock onto it.
+        logger.warning(
+            "Strict face detection failed, retrying without enforcement: %s",
+            exc.__class__.__name__,
+        )
+        try:
+            results = DeepFace.analyze(
+                img_path=frame,
+                actions=["emotion"],
+                enforce_detection=False,
+                silent=True,
+            )
+            _ensure_results_present(results)
+        except Exception as exc2:
+            raise ValueError(NO_FACE_MSG) from exc2
 
     # DeepFace returns a list when multiple faces are found; use the first.
     result = results[0] if isinstance(results, list) else results
