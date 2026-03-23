@@ -299,7 +299,7 @@ def chat(request: ChatRequest):
         return ChatResponse(reply=reply)
     except RuntimeError as exc:
         logger.info("Gemini chat unavailable, using fallback response: %s", exc)
-        reply = get_offline_chat_reply(messages)
+        reply = generate_fallback_chat_response(messages)
         return ChatResponse(reply=reply)
     except Exception as exc:
         logger.exception("Chat endpoint failed")
@@ -389,7 +389,7 @@ OFFLINE_PROMPTS = {
 }
 
 
-def get_offline_chat_reply(messages: List[dict]) -> str:
+def generate_fallback_chat_response(messages: List[dict]) -> str:
     """
     Lightweight, non-Gemini fallback reply for the chat endpoint.
     Uses the keyword-based text emotion analyser to craft a warm response so
@@ -414,7 +414,7 @@ def get_offline_chat_reply(messages: List[dict]) -> str:
 
     latest = last_message.get("content", "")
     try:
-        # Second return value (scores) is not needed for offline replies.
+        # Second return value (emotion confidence scores) is not needed for offline replies.
         emotion, _ = analyze_text_emotion(latest)
     except Exception:
         emotion = "neutral"

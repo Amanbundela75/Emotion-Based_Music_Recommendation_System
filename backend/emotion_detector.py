@@ -26,6 +26,8 @@ def _ensure_results_present(results):
     """Raise a ValueError if DeepFace returned no detections."""
     if not results:
         raise ValueError(NO_FACE_MSG)
+    if isinstance(results, dict) and "dominant_emotion" not in results:
+        raise ValueError(NO_FACE_MSG)
 
 
 def _base64_to_numpy(image_b64: str) -> np.ndarray:
