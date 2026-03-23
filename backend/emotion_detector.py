@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Emotions supported by DeepFace that we expose
 SUPPORTED_EMOTIONS = {"angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"}
-NO_FACE_MSG = "No face detected in the image."
+NO_FACE_MSG = "No face detected in the image"
 
 
 def _ensure_results_present(results):
