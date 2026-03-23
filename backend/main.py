@@ -398,9 +398,11 @@ def _offline_chat_reply(messages: List[dict]) -> str:
     Parameters
     ----------
     messages : List[dict]
-        Conversation history as a list of dictionaries with a ``content`` key
-        containing the latest user message string (matches the chat endpoint
-        payload).
+        Conversation history from the chat endpoint. Each dictionary should
+        include at least a ``content`` string (the user's message) and may
+        include a ``role`` field (e.g., ``user`` or ``assistant``). Only the
+        ``content`` from the most recent message is used for emotion analysis
+        in this fallback path.
     """
     if not messages:
         return DEFAULT_OFFLINE_REPLY
