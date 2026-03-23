@@ -380,8 +380,9 @@ def _offline_chat_reply(messages: List[dict]) -> str:
     Uses the keyword-based text emotion analyser to craft a warm response so
     the chat feature keeps working even without Gemini credentials.
     """
+    default_reply = "I'm here with you. Share more if you'd like, and I'll do my best to help."
     if not messages:
-        return "I'm here with you. Share more if you'd like, and I'll do my best to help."
+        return default_reply
 
     latest = messages[-1].get("content", "")
     try:
@@ -399,7 +400,4 @@ def _offline_chat_reply(messages: List[dict]) -> str:
         "neutral": "Thanks for sharing. I'm here if you want to talk more or explore some music to match your mood.",
     }
 
-    return prompts.get(
-        emotion,
-        "I'm here with you. Share more if you'd like, and I'll do my best to help.",
-    )
+    return prompts.get(emotion, default_reply)
