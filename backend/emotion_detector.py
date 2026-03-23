@@ -58,8 +58,6 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
         frame = _base64_to_numpy(image_b64)
     except Exception as exc:
         raise ValueError(f"Could not decode image: {exc}") from exc
-    results = None
-
     try:
         results = DeepFace.analyze(
             img_path=frame,
@@ -81,7 +79,7 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
         except Exception as exc2:
             raise ValueError(f"No face detected in the image: {exc2}") from exc2
 
-    if results is None:
+    if not results:
         raise ValueError("No face detected in the image.")
 
     # DeepFace returns a list when multiple faces are found; use the first.
