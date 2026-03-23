@@ -92,10 +92,6 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
         )
         _ensure_results_present(results)
     except Exception as exc:
-        # Retry with relaxed detection when strict mode fails to detect a face.
-        logger.warning(
-            "Strict face detection failed, retrying without enforcement: %s", exc
-        )
         try:
             results = DeepFace.analyze(
                 img_path=frame,
@@ -104,6 +100,9 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
                 silent=True,
             )
             _ensure_results_present(results)
+            logger.warning(
+                "Strict face detection failed, relaxed detection succeeded: %s", exc
+            )
         except Exception as exc2:
             logger.warning(
                 "Both strict and relaxed face detection failed (strict=%s, relaxed=%s)",

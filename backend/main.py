@@ -419,7 +419,7 @@ def generate_emotion_based_chat_fallback(messages: List[dict]) -> str:
 
     latest = last_message.get("content", "")
     try:
-        # Ignoring the second tuple element (emotion confidence scores) for offline replies.
+        # Ignore the second tuple element (emotion confidence scores) for offline replies.
         emotion, _ = analyze_text_emotion(latest)
     except Exception:
         emotion = "neutral"
