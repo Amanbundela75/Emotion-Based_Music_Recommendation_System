@@ -380,7 +380,7 @@ def _offline_chat_reply(messages: List[dict]) -> str:
     Uses the keyword-based text emotion analyser to craft a warm response so
     the chat feature keeps working even without Gemini credentials.
     """
-    latest = messages[-1]["content"] if messages else ""
+    latest = messages[-1].get("content", "") if messages else ""
     try:
         emotion, _ = analyze_text_emotion(latest)
     except Exception:
