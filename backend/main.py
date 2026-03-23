@@ -407,7 +407,8 @@ def _offline_chat_reply(messages: List[dict]) -> str:
     if not messages:
         return DEFAULT_OFFLINE_REPLY
 
-    latest = messages[-1].get("content", "")
+    last_message = messages[-1] if isinstance(messages[-1], dict) else {}
+    latest = last_message.get("content", "")
     try:
         emotion, _ = analyze_text_emotion(latest)
     except Exception:

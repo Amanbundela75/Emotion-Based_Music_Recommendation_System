@@ -74,8 +74,7 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
         )
         _ensure_results_present(results)
     except Exception as exc:
-        # Retry with relaxed detection to avoid hard failures when a face is present
-        # but the strict detector cannot lock onto it.
+        # Retry with relaxed detection when strict mode fails to detect a face.
         logger.warning(
             "Strict face detection failed, retrying without enforcement: %s", exc
         )
