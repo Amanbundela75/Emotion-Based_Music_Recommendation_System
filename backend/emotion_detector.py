@@ -89,7 +89,7 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
             )
             _ensure_results_present(results)
         except Exception as exc2:
-            raise ValueError(f"{NO_FACE_MSG}: {exc2}") from exc2
+            raise ValueError(NO_FACE_MSG) from exc2
 
     # DeepFace returns a list when multiple faces are found; use the first.
     result = results[0] if isinstance(results, list) else results
