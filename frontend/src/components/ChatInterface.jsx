@@ -412,15 +412,16 @@ function buildMockTracks(emotion, limit = 10) {
   const params = EMOTION_GENRE_MAP[emotion] || EMOTION_GENRE_MAP.neutral;
   const genre = params.genres[0];
   const nameBase = genre.charAt(0).toUpperCase() + genre.slice(1);
+  const PLACEHOLDER_IMAGE_SIZE = "300x300";
 
-  return Array.from({ length: limit }).map((_, i) => {
-    const name = `${nameBase} Track ${i + 1}`;
+  return Array.from({ length: limit }).map((_, index) => {
+    const name = `${nameBase} Track ${index + 1}`;
     return {
-      id: `offline_${emotion}_${i}`,
+      id: `offline_${emotion}_${index}`,
       name,
       artist: "Demo Artist",
-      album: `${genre} vibes`,
-      album_art: `https://via.placeholder.com/300x300.png?text=${encodeURIComponent(
+      album: `${nameBase} Vibes`,
+      album_art: `https://via.placeholder.com/${PLACEHOLDER_IMAGE_SIZE}.png?text=${encodeURIComponent(
         genre
       )}`,
       spotify_url: "",
