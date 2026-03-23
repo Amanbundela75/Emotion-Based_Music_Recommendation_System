@@ -22,6 +22,12 @@ SUPPORTED_EMOTIONS = {"angry", "disgust", "fear", "happy", "neutral", "sad", "su
 NO_FACE_MSG = "No face detected in the image."
 
 
+def _ensure_results_present(results):
+    """Raise a ValueError if DeepFace returned no detections."""
+    if not results:
+        raise ValueError(NO_FACE_MSG)
+
+
 def _base64_to_numpy(image_b64: str) -> np.ndarray:
     """Decode a base64-encoded image string (with or without data-URI prefix) to an
     OpenCV-compatible NumPy array (BGR)."""
@@ -66,8 +72,7 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
             enforce_detection=True,
             silent=True,
         )
-        if not results:
-            raise ValueError(NO_FACE_MSG)
+        _ensure_results_present(results)
     except Exception as exc:
         # Retry with relaxed detection to avoid hard failures when a face is present
         # but the strict detector cannot lock onto it.
@@ -79,8 +84,7 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
                 enforce_detection=False,
                 silent=True,
             )
-            if not results:
-                raise ValueError(NO_FACE_MSG)
+            _ensure_results_present(results)
         except Exception as exc2:
             raise ValueError(f"{NO_FACE_MSG}: {exc2}") from exc2
 
