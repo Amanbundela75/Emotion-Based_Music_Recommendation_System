@@ -92,13 +92,13 @@ export default function ChatInterface({ onBack }) {
         try {
           data = await analyzeText(text);
         } catch {
-          // Backend unavailable – client-side fallback (no music)
+          // Backend unavailable – client-side fallback (with local mock tracks)
           const result = analyzeTextEmotion(text);
           data = {
             emotion: result.emotion,
             scores: result.scores,
-            tracks: [],
-            message: null,
+            tracks: buildMockTracks(result.emotion, 10),
+            message: buildOfflineIntro(result.emotion),
           };
         }
 
@@ -128,7 +128,17 @@ export default function ChatInterface({ onBack }) {
     } catch (err) {
       const detail =
         err.response?.data?.detail ?? err.message ?? "Unknown error";
-      setError(`Something went wrong: ${detail}`);
+      // Offer a graceful offline reply when the backend is unreachable
+      const offlineReply = buildOfflineChatReply(messages, inputText);
+      if (offlineReply) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: offlineReply },
+        ]);
+        setError("Backend unreachable. Showing offline chat reply locally.");
+      } else {
+        setError(`Something went wrong: ${detail}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -366,4 +376,79 @@ function ChatBubble({ message }) {
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Offline fallbacks (used when backend is unreachable)
+// ---------------------------------------------------------------------------
+
+const OFFLINE_PROMPTS = {
+  happy:
+    "That's wonderful to hear! Keep celebrating those good vibes—here's some upbeat music to match your mood.",
+  sad: "I'm sorry you're feeling low. Be gentle with yourself; some soothing music can offer comfort.",
+  angry:
+    "I hear your frustration. Taking a breath and listening to something energizing-yet-calming might help.",
+  fear:
+    "It's natural to feel worried. Ground yourself with a few slow breaths while these tracks play quietly.",
+  disgust:
+    "That sounds unpleasant. Here's a mix of raw, honest tracks that might help you process the feeling.",
+  surprise:
+    "Wow, that was unexpected! Enjoy this lively set while you take it all in.",
+  neutral:
+    "Thanks for sharing. Here are some balanced, feel-good tracks to keep you company.",
+};
+
+const EMOTION_GENRE_MAP = {
+  happy: { genres: ["pop", "dance"] },
+  sad: { genres: ["acoustic", "chill"] },
+  angry: { genres: ["metal", "rock"] },
+  neutral: { genres: ["lo-fi", "ambient"] },
+  surprise: { genres: ["electronic", "edm"] },
+  fear: { genres: ["ambient", "cinematic"] },
+  disgust: { genres: ["punk", "alternative"] },
+};
+
+function buildMockTracks(emotion, limit = 10) {
+  const params = EMOTION_GENRE_MAP[emotion] || EMOTION_GENRE_MAP.neutral;
+  const genre = params.genres[0];
+  const nameBase = genre.charAt(0).toUpperCase() + genre.slice(1);
+  const PLACEHOLDER_IMAGE_SIZE = "300x300";
+
+  return Array.from({ length: limit }).map((_, index) => {
+    const name = `${nameBase} Track ${index + 1}`;
+    return {
+      id: `offline_${emotion}_${index}`,
+      name,
+      artist: "Demo Artist",
+      album: `${nameBase} Vibes`,
+      album_art: `https://via.placeholder.com/${PLACEHOLDER_IMAGE_SIZE}.png?text=${encodeURIComponent(
+        genre
+      )}`,
+      spotify_url: "",
+      preview_url: null,
+      youtube_url: `https://music.youtube.com/search?q=${encodeURIComponent(
+        `${genre} ${emotion} songs`
+      )}`,
+    };
+  });
+}
+
+function buildOfflineIntro(emotion) {
+  const prompt = OFFLINE_PROMPTS[emotion] || OFFLINE_PROMPTS.neutral;
+  return `${prompt} (Offline suggestions)`;
+}
+
+function buildOfflineChatReply(history, latestUserMessage) {
+  const lastUser =
+    latestUserMessage ||
+    [...history].reverse().find((m) => m.role === "user")?.content ||
+    "";
+  if (!lastUser) return null;
+
+  try {
+    const { emotion } = analyzeTextEmotion(lastUser);
+    return OFFLINE_PROMPTS[emotion] || OFFLINE_PROMPTS.neutral;
+  } catch {
+    return OFFLINE_PROMPTS.neutral;
+  }
 }
