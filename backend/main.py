@@ -298,7 +298,9 @@ def chat(request: ChatRequest):
         reply = chat_with_gemini(messages)
         return ChatResponse(reply=reply)
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        logger.info("Gemini chat unavailable, using fallback response: %s", exc)
+        reply = get_offline_chat_response(messages)
+        return ChatResponse(reply=reply)
     except Exception as exc:
         logger.exception("Chat endpoint failed")
         raise HTTPException(status_code=500, detail="Internal error during chat.") from exc
@@ -370,3 +372,56 @@ def _get_tracks_from_queries(
         return get_recommendations(emotion=emotion, limit=limit)
 
     return tracks[:limit]
+
+
+DEFAULT_OFFLINE_REPLY = (
+    "I'm here with you. Share more if you'd like, and I'll do my best to help."
+)
+
+OFFLINE_PROMPTS = {
+    "happy": "It sounds like you're feeling upbeat! Savor the good moments; some joyful music can make it even better.",
+    "sad": "I'm sorry you're going through a tough time. Be gentle with yourself—taking a short break or listening to comforting music can help you process what you're feeling.",
+    "angry": "I hear your frustration. Try a few deep breaths or a quick walk to release that tension; music can also help channel that energy constructively.",
+    "fear": "Feeling worried is natural. Ground yourself with slow breaths and focus on what you can control right now. I'm here to listen.",
+    "disgust": "That situation sounds unpleasant. Setting a boundary or stepping away for a bit might help. You've got this.",
+    "surprise": "That was unexpected! Take a moment to process it—it's okay to feel a mix of emotions.",
+    "neutral": "Thanks for sharing. I'm here if you want to talk more or explore some music to match your mood.",
+}
+
+
+def get_offline_chat_response(messages: List[dict]) -> str:
+    """
+    Lightweight, non-Gemini fallback reply for the chat endpoint.
+    Uses the keyword-based text emotion analyzer to craft a warm response so
+    the chat feature keeps working even without Gemini credentials.
+
+    Parameters
+    ----------
+    messages : List[dict]
+        Conversation history from the chat endpoint. Each dictionary should
+        include at least a ``content`` string (the user's message) and may
+        include a ``role`` field (e.g., ``user`` or ``assistant``). Only the
+        ``content`` from the most recent message is used for emotion analysis
+        in this fallback path.
+
+    Returns
+    -------
+    str
+        An emotion-appropriate fallback chat message.
+    """
+    if not messages:
+        return DEFAULT_OFFLINE_REPLY
+
+    last_message = messages[-1]
+    if not isinstance(last_message, dict):
+        logger.warning("Invalid chat message format: %s", type(last_message))
+        return DEFAULT_OFFLINE_REPLY
+
+    latest = last_message.get("content", "")
+    try:
+        # Ignore the second tuple element (emotion confidence scores).
+        emotion, _ = analyze_text_emotion(latest)
+    except Exception:
+        emotion = "neutral"
+
+    return OFFLINE_PROMPTS.get(emotion, DEFAULT_OFFLINE_REPLY)
