@@ -22,7 +22,7 @@ SUPPORTED_EMOTIONS = {"angry", "disgust", "fear", "happy", "neutral", "sad", "su
 NO_FACE_MESSAGE = "No face detected in the image."
 
 
-def _ensure_results_present(results):
+def _ensure_results_present(results) -> None:
     """
     Validate that DeepFace returned a usable emotion result.
 
@@ -102,7 +102,9 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
             )
             _ensure_results_present(results)
             logger.warning(
-                "Strict face detection failed, relaxed detection succeeded: %s", exc
+                "Strict face detection failed (enforce_detection=True): %s; "
+                "relaxed detection (enforce_detection=False) succeeded.",
+                exc,
             )
         except Exception as exc2:
             logger.warning(
