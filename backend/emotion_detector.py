@@ -87,7 +87,11 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
             )
             _ensure_results_present(results)
         except Exception as exc2:
-            logger.warning("Relaxed face detection failed: %s", exc2)
+            logger.warning(
+                "Both strict and relaxed face detection failed (strict=%s, relaxed=%s)",
+                exc,
+                exc2,
+            )
             raise ValueError(NO_FACE_MSG) from exc2
 
     # DeepFace returns a list when multiple faces are found; use the first.

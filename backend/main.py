@@ -407,7 +407,11 @@ def _offline_chat_reply(messages: List[dict]) -> str:
     if not messages:
         return DEFAULT_OFFLINE_REPLY
 
-    last_message = messages[-1] if isinstance(messages[-1], dict) else {}
+    last_message = messages[-1]
+    if not isinstance(last_message, dict):
+        logger.warning("Invalid chat message format: %s", type(last_message))
+        return DEFAULT_OFFLINE_REPLY
+
     latest = last_message.get("content", "")
     try:
         emotion, _ = analyze_text_emotion(latest)
