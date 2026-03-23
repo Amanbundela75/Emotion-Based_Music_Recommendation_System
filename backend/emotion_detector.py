@@ -25,6 +25,12 @@ NO_FACE_MESSAGE = "No face detected in the image"
 def _ensure_results_present(results):
     """
     Validate that DeepFace returned a usable emotion result.
+
+    Parameters
+    ----------
+    results : list | dict
+        Raw output from DeepFace.analyze containing emotion predictions.
+
     Raises
     ------
     ValueError

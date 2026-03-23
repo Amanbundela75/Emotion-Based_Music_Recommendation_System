@@ -403,6 +403,11 @@ def generate_emotion_based_chat_fallback(messages: List[dict]) -> str:
         include a ``role`` field (e.g., ``user`` or ``assistant``). Only the
         ``content`` from the most recent message is used for emotion analysis
         in this fallback path.
+
+    Returns
+    -------
+    str
+        An emotion-appropriate fallback chat message.
     """
     if not messages:
         return DEFAULT_OFFLINE_REPLY
