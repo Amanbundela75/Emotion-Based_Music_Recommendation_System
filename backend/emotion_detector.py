@@ -19,15 +19,25 @@ logger = logging.getLogger(__name__)
 
 # Emotions supported by DeepFace that we expose
 SUPPORTED_EMOTIONS = {"angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"}
-NO_FACE_MSG = "No face detected in the image"
+NO_FACE_MESSAGE = "No face detected in the image"
 
 
 def _ensure_results_present(results):
-    """Raise a ValueError if DeepFace returned no detections."""
+    """
+    Validate that DeepFace returned a usable emotion result.
+    Raises
+    ------
+    ValueError
+        If results are empty or missing a dominant emotion field.
+    """
     if not results:
-        raise ValueError(NO_FACE_MSG)
+        raise ValueError(NO_FACE_MESSAGE)
+    if isinstance(results, list):
+        first = results[0] if results else {}
+        if not isinstance(first, dict) or "dominant_emotion" not in first:
+            raise ValueError(NO_FACE_MESSAGE)
     if isinstance(results, dict) and "dominant_emotion" not in results:
-        raise ValueError(NO_FACE_MSG)
+        raise ValueError(NO_FACE_MESSAGE)
 
 
 def _base64_to_numpy(image_b64: str) -> np.ndarray:
@@ -94,7 +104,7 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
                 exc,
                 exc2,
             )
-            raise ValueError(NO_FACE_MSG) from exc2
+            raise ValueError(NO_FACE_MESSAGE) from exc2
 
     # DeepFace returns a list when multiple faces are found; use the first.
     result = results[0] if isinstance(results, list) else results
