@@ -65,6 +65,8 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
             enforce_detection=True,
             silent=True,
         )
+        if not results:
+            raise ValueError("No face detected in the image.")
     except Exception as exc:
         # Retry with relaxed detection to avoid hard failures when a face is present
         # but the strict detector cannot lock onto it.
@@ -76,11 +78,10 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
                 enforce_detection=False,
                 silent=True,
             )
+            if not results:
+                raise ValueError("No face detected in the image.")
         except Exception as exc2:
             raise ValueError(f"No face detected in the image: {exc2}") from exc2
-
-    if not results:
-        raise ValueError("No face detected in the image.")
 
     # DeepFace returns a list when multiple faces are found; use the first.
     result = results[0] if isinstance(results, list) else results
