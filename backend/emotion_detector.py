@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Emotions supported by DeepFace that we expose
 SUPPORTED_EMOTIONS = {"angry", "disgust", "fear", "happy", "neutral", "sad", "surprise"}
-NO_FACE_MESSAGE = "No face detected in the image"
+NO_FACE_MESSAGE = "No face detected in the image."
 
 
 def _ensure_results_present(results):
@@ -105,7 +105,8 @@ def analyze_emotion(image_b64: str) -> Tuple[str, Dict[str, float]]:
             )
         except Exception as exc2:
             logger.warning(
-                "Both strict and relaxed face detection failed (strict=%s, relaxed=%s)",
+                "Both strict and relaxed face detection failed "
+                "(strict_error=%s, relaxed_error=%s)",
                 exc,
                 exc2,
             )
