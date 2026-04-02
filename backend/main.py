@@ -299,7 +299,7 @@ def chat(request: ChatRequest):
         return ChatResponse(reply=reply)
     except RuntimeError as exc:
         logger.info("Gemini chat unavailable, using fallback response: %s", exc)
-        reply = _offline_chat_reply(messages)
+        reply = get_offline_chat_response(messages)
         return ChatResponse(reply=reply)
     except Exception as exc:
         logger.exception("Chat endpoint failed")
@@ -389,17 +389,37 @@ OFFLINE_PROMPTS = {
 }
 
 
-def _offline_chat_reply(messages: List[dict]) -> str:
+def get_offline_chat_response(messages: List[dict]) -> str:
     """
     Lightweight, non-Gemini fallback reply for the chat endpoint.
-    Uses the keyword-based text emotion analyser to craft a warm response so
+    Uses the keyword-based text emotion analyzer to craft a warm response so
     the chat feature keeps working even without Gemini credentials.
+
+    Parameters
+    ----------
+    messages : List[dict]
+        Conversation history from the chat endpoint. Each dictionary should
+        include at least a ``content`` string (the user's message) and may
+        include a ``role`` field (e.g., ``user`` or ``assistant``). Only the
+        ``content`` from the most recent message is used for emotion analysis
+        in this fallback path.
+
+    Returns
+    -------
+    str
+        An emotion-appropriate fallback chat message.
     """
     if not messages:
         return DEFAULT_OFFLINE_REPLY
 
-    latest = messages[-1].get("content", "")
+    last_message = messages[-1]
+    if not isinstance(last_message, dict):
+        logger.warning("Invalid chat message format: %s", type(last_message))
+        return DEFAULT_OFFLINE_REPLY
+
+    latest = last_message.get("content", "")
     try:
+        # Ignore the second tuple element (emotion confidence scores).
         emotion, _ = analyze_text_emotion(latest)
     except Exception:
         emotion = "neutral"
